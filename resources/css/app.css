@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* Ensure the main content has proper margin on desktop */
+@media (min-width: 768px) {
+    .md\:ml-64 {
+        margin-left: 16rem; /* 64 * 0.25rem = 16rem = 256px */
+    }
+}
