@@ -510,7 +510,7 @@ Route::middleware(['auth'])->group(function () {
         return response()->json($payment, 201);
     })->name('member.payments.store');
     
-       // Member Payment - Record GCash payment details with proof image (status remains PENDING)
+              // Member Payment - Record GCash payment details with proof image (status remains PENDING)
     Route::post('/member/payments/{id}/pay', function (Request $request, $id) {
         $payment = Payment::findOrFail($id);
         
@@ -525,19 +525,19 @@ Route::middleware(['auth'])->group(function () {
             'reference_number' => $validated['reference_number'],
         ];
         
-      // Handle file upload
+        // Handle file upload - Direct to public/uploads folder (no symlink needed)
         if ($request->hasFile('proof_image')) {
             $file = $request->file('proof_image');
             $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
             
-            // Create directory if not exists
-            $uploadPath = public_path('uploads/payment_proofs');
-            if (!file_exists($uploadPath)) {
-                mkdir($uploadPath, 0777, true);
+            // Create directory inside public
+            $destinationPath = public_path('uploads/payment_proofs');
+            if (!file_exists($destinationPath)) {
+                mkdir($destinationPath, 0777, true);
             }
             
-            // Move file directly to public directory
-            $file->move($uploadPath, $filename);
+            // Move file directly
+            $file->move($destinationPath, $filename);
             $updateData['proof_image'] = '/uploads/payment_proofs/' . $filename;
         }
         
