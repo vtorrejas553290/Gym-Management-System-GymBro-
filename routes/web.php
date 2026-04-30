@@ -525,12 +525,20 @@ Route::middleware(['auth'])->group(function () {
             'reference_number' => $validated['reference_number'],
         ];
         
-        // Handle file upload
+      // Handle file upload
         if ($request->hasFile('proof_image')) {
             $file = $request->file('proof_image');
             $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('payment_proofs', $filename, 'public');
-            $updateData['proof_image'] = '/storage/' . $path;
+            
+            // Create directory if not exists
+            $uploadPath = public_path('uploads/payment_proofs');
+            if (!file_exists($uploadPath)) {
+                mkdir($uploadPath, 0777, true);
+            }
+            
+            // Move file directly to public directory
+            $file->move($uploadPath, $filename);
+            $updateData['proof_image'] = '/uploads/payment_proofs/' . $filename;
         }
         
         $payment->update($updateData);
