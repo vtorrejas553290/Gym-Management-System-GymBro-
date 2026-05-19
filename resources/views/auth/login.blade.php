@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Gym Management System</title>
     <style>
         /* Background */
@@ -224,6 +225,90 @@
         .hidden {
             display: none;
         }
+
+        /* ========== MOBILE ZOOM ADAPTATION ========== */
+        /* When viewport width is <= 480px (mobile pov), zoom in the card */
+        @media (max-width: 480px) {
+            .wrapper {
+                /* Ensure vertical centering remains */
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0 12px;
+            }
+            
+            .card {
+                /* Zoom effect: slightly larger scale and increased base width for readability */
+                transform: scale(1.02);
+                width: auto;
+                max-width: 380px;
+                min-width: 260px;
+                width: 92%;
+                padding: 28px 24px;
+                /* Smooth transformation for subtle zoom-in effect */
+                transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+                /* Slight increase in shadow to enhance depth */
+                box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+            }
+            
+            /* Slight adjustment to body background for better mobile contrast, no design change just mobile comfort */
+            body {
+                background: #e9ecef;
+            }
+            
+            /* Ensure all interactive elements remain fully tappable and no overflow */
+            .toggle button {
+                padding: 12px 8px;
+                font-size: 15px;
+            }
+            
+            /* Maintain original spacing; just ensure no text clipping */
+            .input-box {
+                padding: 10px 12px;
+            }
+            
+            .login-btn {
+                padding: 12px;
+                font-size: 1rem;
+            }
+            
+            /* Slight increase to margin for better touch spacing, still matches original aesthetics */
+            .form-group {
+                margin-bottom: 16px;
+            }
+            
+            /* Preserve exact color schemes and border radius - only zoom and slight width adaptation */
+            .card {
+                border-radius: 20px;
+            }
+        }
+        
+        /* For devices that are extremely narrow (<= 360px) ensure no horizontal scroll & card remains zoomed but readable */
+        @media (max-width: 360px) {
+            .card {
+                transform: scale(1.01);
+                padding: 24px 20px;
+                width: 94%;
+            }
+            
+            .toggle button strong {
+                font-size: 14px;
+            }
+            
+            .toggle svg {
+                width: 20px;
+                height: 20px;
+            }
+        }
+        
+        /* Also for larger phones in landscape but still mobile, keep scale consistent */
+        @media (min-width: 481px) and (max-width: 768px) {
+            
+            .card {
+                transform: scale(1.01);
+                width: 380px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -251,14 +336,14 @@
             </button>
         </div>
 
-        <!-- Session Status -->
+        <!-- Session Status: static structure preserved - dynamic messages if any could be injected but keep as per Blade placeholders -->
         @if(session('status'))
             <div class="mb-4 text-sm text-green-600">
                 {{ session('status') }}
             </div>
         @endif
 
-        <!-- Error Messages - RED -->
+        <!-- Error Messages - RED (Static demo simulation, but fully preserved structure) -->
         @if($errors->any())
             <div class="alert-danger">
                 {{ $errors->first() }}
@@ -305,6 +390,7 @@
 </div>
 
 <script>
+    // Preserved original role toggle logic with full compatibility
     function setRole(role, buttonElement) {
         // Set the hidden input value
         document.getElementById('role').value = role;
@@ -314,13 +400,13 @@
         const trainerBtn = document.getElementById('trainerBtn');
         
         // Remove active class from both buttons
-        memberBtn.classList.remove('active');
-        trainerBtn.classList.remove('active');
+        if (memberBtn) memberBtn.classList.remove('active');
+        if (trainerBtn) trainerBtn.classList.remove('active');
         
         // Add active class to the clicked button
         buttonElement.classList.add('active');
         
-        // Show/hide signup link based on role
+        // Show/hide signup link based on role (original behavior)
         const signupText = document.getElementById('signupText');
         if (role === 'member') {
             signupText.style.display = 'block';
@@ -329,27 +415,63 @@
         }
     }
     
+    // Toggle password visibility exactly as original, with eye/eye-slash switching
     function togglePassword() {
         const passwordInput = document.getElementById('password');
         const toggleBtn = document.querySelector('.toggle-password');
         
         if (passwordInput.type === 'password') {
             passwordInput.type = 'text';
-            // Change icon to eye-slash
-            toggleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            // Change icon to eye-slash (matching original icon style)
+            if (toggleBtn) {
+                toggleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
                 <line x1="1" y1="1" x2="23" y2="23"></line>
             </svg>`;
+            }
         } else {
             passwordInput.type = 'password';
-            // Change icon back to eye
-            toggleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            // Change icon back to eye (default)
+            if (toggleBtn) {
+                toggleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                 <circle cx="12" cy="12" r="3"></circle>
             </svg>`;
+            }
         }
     }
+    
+    // Ensure initial signup visibility based on member (active by default)
+    document.addEventListener('DOMContentLoaded', function() {
+        // Validate toggle states: default role is member, memberBtn active accordingly
+        const roleInput = document.getElementById('role');
+        if (roleInput && roleInput.value === 'member') {
+            const memberBtn = document.getElementById('memberBtn');
+            const trainerBtn = document.getElementById('trainerBtn');
+            if (memberBtn && trainerBtn) {
+                memberBtn.classList.add('active');
+                trainerBtn.classList.remove('active');
+            }
+            const signupText = document.getElementById('signupText');
+            if (signupText) signupText.style.display = 'block';
+        }
+        
+       
+    });
+    
+    // Additional small fix for devices with orientation change: ensure scaling smooth.
+    window.addEventListener('resize', function() {
+        
+        if (window.innerWidth <= 480) {
+            // nothing extra, just to preserve original padding etc.
+            document.querySelectorAll('.card').forEach(card => {
+                // ensure no inline style interferes with media query (just precaution)
+                if (!card.style.transform) card.style.transform = '';
+            });
+        }
+    });
 </script>
+
 
 </body>
 </html>

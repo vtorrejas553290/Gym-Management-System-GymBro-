@@ -11,7 +11,7 @@
             </div>
         </div>
 
-                       <!-- Stats Cards - Icon and Title top-left, Values bottom-right -->
+        <!-- Stats Cards - Icon and Title top-left, Values bottom-right -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <!-- Total Sessions Card -->
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
@@ -74,7 +74,7 @@
             </div>
         </div>
 
-                <!-- Search and Filters -->
+        <!-- Search and Filters -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div class="flex flex-col sm:flex-row gap-4">
                 <div class="flex-1 relative">
@@ -84,7 +84,15 @@
                     <input type="text" id="searchInput" placeholder="Search by member or session type..." class="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent">
                 </div>
                 <div class="sm:w-48">
-                    <input type="date" id="dateFilter" class="w-full px-4 py-2 pr-8 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent">
+                    <input type="date" id="dateFilter" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent">
+                </div>
+                <div class="sm:w-48">
+                    <select id="statusFilter" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent">
+                        <option value="">All Status</option>
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
                 </div>
             </div>
             <div class="mt-4 flex items-center justify-between">
@@ -117,6 +125,29 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+            
+            <!-- Pagination -->
+            <div class="border-t border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-gray-600">
+                        Showing <span id="paginateFrom">0</span> to <span id="paginateTo">0</span> of <span id="paginateTotal">0</span> results
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="prevPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                            Previous
+                        </button>
+                        <button id="nextPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            Next
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -163,6 +194,10 @@
 let currentStatusUpdateId = null;
 let searchTerm = "";
 let filterDate = "";
+let filterStatus = "";
+let allSchedules = [];
+let currentPage = 1;
+const perPage = 5;
 
 function formatDate(dateString) {
     const date = new Date(dateString);
@@ -173,14 +208,17 @@ async function loadSchedules() {
     try {
         const params = new URLSearchParams({
             search: searchTerm,
-            date: filterDate
+            date: filterDate,
+            status: filterStatus
         });
 
         const response = await fetch(`/trainer/schedules/data?${params}`);
         const data = await response.json();
         
         updateStats(data.stats);
-        renderSchedulesTable(data.schedules);
+        allSchedules = data.schedules;
+        currentPage = 1;
+        renderPaginatedTable();
     } catch (error) {
         console.error('Error loading schedules:', error);
         document.getElementById('schedulesTableBody').innerHTML = `
@@ -193,6 +231,35 @@ async function loadSchedules() {
     }
 }
 
+function renderPaginatedTable() {
+    const totalItems = allSchedules.length;
+    const totalPages = Math.ceil(totalItems / perPage);
+    
+    // Ensure current page is within bounds
+    if (currentPage < 1) currentPage = 1;
+    if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+    
+    const start = (currentPage - 1) * perPage;
+    const end = start + perPage;
+    const paginatedSchedules = allSchedules.slice(start, end);
+    
+    renderSchedulesTable(paginatedSchedules);
+    updatePaginationControls(totalItems, start, end);
+}
+
+function updatePaginationControls(totalItems, start, end) {
+    const from = totalItems === 0 ? 0 : start + 1;
+    const to = Math.min(end, totalItems);
+    
+    document.getElementById('paginateFrom').textContent = from;
+    document.getElementById('paginateTo').textContent = to;
+    document.getElementById('paginateTotal').textContent = totalItems;
+    
+    const totalPages = Math.ceil(totalItems / perPage);
+    document.getElementById('prevPageBtn').disabled = currentPage === 1;
+    document.getElementById('nextPageBtn').disabled = currentPage === totalPages || totalItems === 0;
+}
+
 function updateStats(stats) {
     document.getElementById('totalSessions').textContent = stats.total;
     document.getElementById('scheduledCount').textContent = stats.scheduled;
@@ -203,7 +270,7 @@ function updateStats(stats) {
 function openStatusModal(scheduleId, memberName, sessionDate) {
     currentStatusUpdateId = scheduleId;
     document.getElementById('statusModalSessionInfo').innerHTML = `
-        <strong>${memberName}</strong><br>
+        <strong>${escapeHtml(memberName)}</strong><br>
         Session on ${formatDate(sessionDate)}
     `;
     document.getElementById('statusModal').classList.remove('hidden');
@@ -282,7 +349,7 @@ function renderSchedulesTable(schedules) {
 
     resultsCount.textContent = schedules.length;
 
-    if (searchTerm || filterDate) {
+    if (searchTerm || filterDate || filterStatus) {
         clearFiltersBtn.classList.remove('hidden');
     } else {
         clearFiltersBtn.classList.add('hidden');
@@ -309,14 +376,14 @@ function renderSchedulesTable(schedules) {
                         </svg>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-900 font-medium">${schedule.memberName}</p>
+                        <p class="text-sm text-gray-900 font-medium">${escapeHtml(schedule.memberName)}</p>
                         <p class="text-xs text-gray-500">${schedule.id}</p>
                     </div>
                 </div>
             </td>
             <td class="px-6 py-4">
-                <p class="text-sm text-gray-900 font-medium">${schedule.sessionType}</p>
-                <p class="text-xs text-gray-500">${schedule.location}</p>
+                <p class="text-sm text-gray-900 font-medium">${escapeHtml(schedule.sessionType)}</p>
+                <p class="text-xs text-gray-500">${escapeHtml(schedule.location)}</p>
             </td>
             <td class="px-6 py-4">
                 <div class="flex items-center gap-2 mb-1">
@@ -344,7 +411,7 @@ function renderSchedulesTable(schedules) {
             </td>
             <td class="px-6 py-4">
                 <div class="flex gap-2">
-                    <button onclick="openStatusModal('${schedule.id}', '${schedule.memberName}', '${schedule.sessionDate}')" class="p-2 hover:bg-purple-50 rounded-lg text-purple-600 transition-colors" title="Change Status">
+                    <button onclick="openStatusModal('${schedule.id}', '${escapeHtml(schedule.memberName)}', '${schedule.sessionDate}')" class="p-2 hover:bg-purple-50 rounded-lg text-purple-600 transition-colors" title="Change Status">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                         </svg>
@@ -357,9 +424,17 @@ function renderSchedulesTable(schedules) {
                         </button>
                     ` : ''}
                 </div>
-            </td>
-        </tr>
+             </td>
+         </tr>
     `).join('');
+}
+
+// Helper function to escape HTML to prevent XSS
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Search and filter listeners
@@ -373,12 +448,35 @@ document.getElementById('dateFilter').addEventListener('change', function(e) {
     loadSchedules();
 });
 
+document.getElementById('statusFilter').addEventListener('change', function(e) {
+    filterStatus = e.target.value;
+    loadSchedules();
+});
+
 document.getElementById('clearFiltersBtn').addEventListener('click', function() {
     searchTerm = "";
     filterDate = "";
+    filterStatus = "";
     document.getElementById('searchInput').value = "";
     document.getElementById('dateFilter').value = "";
+    document.getElementById('statusFilter').value = "";
     loadSchedules();
+});
+
+// Pagination listeners
+document.getElementById('prevPageBtn').addEventListener('click', function() {
+    if (currentPage > 1) {
+        currentPage--;
+        renderPaginatedTable();
+    }
+});
+
+document.getElementById('nextPageBtn').addEventListener('click', function() {
+    const totalPages = Math.ceil(allSchedules.length / perPage);
+    if (currentPage < totalPages) {
+        currentPage++;
+        renderPaginatedTable();
+    }
 });
 
 // Initial load

@@ -4,11 +4,9 @@ namespace App\Http\Controllers\Trainer;
 
 use App\Http\Controllers\Controller;
 use App\Models\Schedule;
-use App\Models\User;
 use App\Models\Trainer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class ScheduleController extends Controller
 {
@@ -44,7 +42,7 @@ class ScheduleController extends Controller
     /**
      * Get all schedules for the logged-in trainer (API)
      */
-    public function getSchedules()
+    public function getSchedules(Request $request)
     {
         $trainerId = $this->getTrainerId();
         
@@ -56,32 +54,52 @@ class ScheduleController extends Controller
                     'scheduled' => 0,
                     'completed' => 0,
                     'pendingPayment' => 0
-                ],
-                'error' => 'Trainer not found'
+                ]
             ]);
         }
         
-        $schedules = Schedule::with(['member', 'trainer'])
-            ->where('trainer_id', $trainerId)
-            ->orderBy('session_date', 'desc')
+        $query = Schedule::with(['member', 'trainer'])
+            ->where('trainer_id', $trainerId);
+        
+        // Apply search filter
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->whereHas('member', function($memberQuery) use ($search) {
+                    $memberQuery->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%");
+                })->orWhere('session_type', 'like', "%{$search}%");
+            });
+        }
+        
+        // Apply date filter
+        if ($request->filled('date')) {
+            $query->whereDate('session_date', $request->date);
+        }
+        
+        // Apply status filter
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        
+        $schedules = $query->orderBy('session_date', 'desc')
             ->orderBy('session_time', 'asc')
             ->get();
         
+        // Calculate stats based on filtered results
         $stats = [
-            'total' => Schedule::where('trainer_id', $trainerId)->count(),
-            'scheduled' => Schedule::where('trainer_id', $trainerId)->where('status', 'Scheduled')->count(),
-            'completed' => Schedule::where('trainer_id', $trainerId)->where('status', 'Completed')->count(),
-            'pendingPayment' => Schedule::where('trainer_id', $trainerId)->where('payment_status', 'Pending')->count(),
+            'total' => $schedules->count(),
+            'scheduled' => $schedules->where('status', 'Scheduled')->count(),
+            'completed' => $schedules->where('status', 'Completed')->count(),
+            'pendingPayment' => $schedules->where('payment_status', 'Pending')->count(),
         ];
         
         $formattedSchedules = $schedules->map(function($schedule) {
             return [
                 'id' => 'TS' . str_pad($schedule->id, 3, '0', STR_PAD_LEFT),
-                'originalId' => $schedule->id,
-                'memberName' => $schedule->member ? $schedule->member->first_name . ' ' . $schedule->member->last_name : 'Unknown Member',
-                'memberId' => $schedule->member_id,
-                'trainerName' => $schedule->trainer ? $schedule->trainer->first_name . ' ' . $schedule->trainer->last_name : 'Unknown Trainer',
-                'trainerId' => $schedule->trainer_id,
+                'memberName' => $schedule->member 
+                    ? $schedule->member->first_name . ' ' . $schedule->member->last_name 
+                    : 'Unknown Member',
                 'sessionType' => $schedule->session_type,
                 'sessionDate' => $schedule->session_date,
                 'sessionTime' => $schedule->session_time,
@@ -99,102 +117,38 @@ class ScheduleController extends Controller
     }
 
     /**
-     * Get list of all members (for assign modal)
+     * Update schedule status
      */
-    public function getMembers()
+    public function updateStatus(Request $request, $id)
     {
-        $members = User::where('role', 'member')
-            ->select('id', 'first_name', 'last_name')
-            ->orderBy('first_name')
-            ->get()
-            ->map(function($member) {
-                return [
-                    'id' => $member->id,
-                    'name' => $member->first_name . ' ' . $member->last_name
-                ];
-            });
-        
-        return response()->json($members);
-    }
-
-    /**
-     * Get list of all active trainers (for assign modal)
-     */
-    public function getTrainers()
-    {
-        $trainers = Trainer::where('status', 'Active')
-            ->select('id', 'first_name', 'last_name')
-            ->orderBy('first_name')
-            ->get()
-            ->map(function($trainer) {
-                return [
-                    'id' => $trainer->id,
-                    'name' => $trainer->first_name . ' ' . $trainer->last_name
-                ];
-            });
-        
-        return response()->json($trainers);
-    }
-
-    /**
-     * Store a new schedule
-     */
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'member_id' => 'required|exists:users,id',
-            'trainer_id' => 'required|exists:trainers,id',
-            'session_type' => 'required|string|max:255',
-            'session_date' => 'required|date',
-            'session_time' => 'required|string',
-            'duration' => 'required|string',
-            'location' => 'required|string|max:255',
-            'payment_status' => 'required|in:Pending,Paid',
-        ]);
-        
-        $schedule = Schedule::create([
-            'member_id' => $validated['member_id'],
-            'trainer_id' => $validated['trainer_id'],
-            'session_type' => $validated['session_type'],
-            'session_date' => $validated['session_date'],
-            'session_time' => $validated['session_time'],
-            'duration' => $validated['duration'],
-            'location' => $validated['location'],
-            'payment_status' => $validated['payment_status'],
-            'status' => 'Scheduled',
-        ]);
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Schedule created successfully',
-            'schedule' => $schedule
-        ]);
-    }
-
-    /**
-     * Update an existing schedule
-     */
-    public function update(Request $request, $id)
-    {
-        $schedule = Schedule::findOrFail($id);
-        
-        $validated = $request->validate([
-            'member_id' => 'required|exists:users,id',
-            'trainer_id' => 'required|exists:trainers,id',
-            'session_type' => 'required|string|max:255',
-            'session_date' => 'required|date',
-            'session_time' => 'required|string',
-            'duration' => 'required|string',
-            'location' => 'required|string|max:255',
-            'payment_status' => 'required|in:Pending,Paid',
-        ]);
-        
-        $schedule->update($validated);
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Schedule updated successfully'
-        ]);
+        try {
+            $schedule = Schedule::findOrFail($id);
+            $trainerId = $this->getTrainerId();
+            
+            // Verify this schedule belongs to the logged-in trainer
+            if ($schedule->trainer_id != $trainerId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized - This session does not belong to you'
+                ], 403);
+            }
+            
+            $validated = $request->validate([
+                'status' => 'required|in:Scheduled,Completed,Cancelled'
+            ]);
+            
+            $schedule->update(['status' => $validated['status']]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Status updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error updating status: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -202,147 +156,29 @@ class ScheduleController extends Controller
      */
     public function cancel($id)
     {
-        $schedule = Schedule::findOrFail($id);
-        $schedule->update(['status' => 'Cancelled']);
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Session cancelled successfully'
-        ]);
-    }
-
-    /**
-     * Get dashboard statistics
-     */
-    public function getStats()
-    {
-        $trainerId = $this->getTrainerId();
-        
-        if (!$trainerId) {
-            return response()->json([
-                'total_clients' => 0,
-                'total_clients_growth' => 0,
-                'today_sessions' => 0,
-                'remaining_today' => 0,
-                'completed_sessions' => 0,
-                'completed_this_week' => 0,
-                'pending_sessions' => 0,
-            ]);
-        }
-        
-        return response()->json([
-            'total_clients' => Schedule::where('trainer_id', $trainerId)->distinct('member_id')->count('member_id'),
-            'total_clients_growth' => 5,
-            'today_sessions' => Schedule::where('trainer_id', $trainerId)->whereDate('session_date', today())->where('status', 'Scheduled')->count(),
-            'remaining_today' => Schedule::where('trainer_id', $trainerId)->whereDate('session_date', today())->where('status', 'Scheduled')->where('session_time', '>', now()->format('H:i'))->count(),
-            'completed_sessions' => Schedule::where('trainer_id', $trainerId)->where('status', 'Completed')->count(),
-            'completed_this_week' => Schedule::where('trainer_id', $trainerId)->where('status', 'Completed')->whereBetween('session_date', [now()->startOfWeek(), now()->endOfWeek()])->count(),
-            'pending_sessions' => Schedule::where('trainer_id', $trainerId)->where('payment_status', 'Pending')->count(),
-        ]);
-    }
-
-    /**
-     * Get today's sessions for the dashboard
-     */
-    public function getTodaySessions()
-    {
-        $trainerId = $this->getTrainerId();
-        
-        $sessions = Schedule::with('member')
-            ->where('trainer_id', $trainerId)
-            ->whereDate('session_date', today())
-            ->orderBy('session_time', 'asc')
-            ->get();
-        
-        return response()->json($sessions->map(function($session) {
-            return [
-                'id' => $session->id,
-                'time' => $session->session_time,
-                'member_name' => $session->member ? $session->member->first_name . ' ' . $session->member->last_name : 'Unknown',
-                'session_type' => $session->session_type,
-                'duration' => $session->duration,
-                'status' => $session->status,
-            ];
-        }));
-    }
-
-    /**
-     * Get active clients for the dashboard
-     */
-    public function getActiveClients()
-    {
-        $trainerId = $this->getTrainerId();
-        
-        $memberIds = Schedule::where('trainer_id', $trainerId)
-            ->distinct('member_id')
-            ->pluck('member_id');
-        
-        $clients = User::whereIn('id', $memberIds)
-            ->where('status', 'Active')
-            ->get();
-        
-        return response()->json($clients->map(function($client) use ($trainerId) {
-            $nextSession = Schedule::where('member_id', $client->id)
-                ->where('trainer_id', $trainerId)
-                ->where('session_date', '>=', today())
-                ->where('status', 'Scheduled')
-                ->orderBy('session_date', 'asc')
-                ->first();
+        try {
+            $schedule = Schedule::findOrFail($id);
+            $trainerId = $this->getTrainerId();
             
-            return [
-                'id' => $client->id,
-                'name' => $client->first_name . ' ' . $client->last_name,
-                'initials' => strtoupper(substr($client->first_name, 0, 1)) . strtoupper(substr($client->last_name, 0, 1)),
-                'plan' => $client->plan ?? 'Basic',
-                'next_session' => $nextSession ? $nextSession->session_date->format('D, M d') . ' at ' . $nextSession->session_time : 'Not scheduled',
-            ];
-        }));
-    }
-
-    /**
-     * Get weekly sessions data for chart
-     */
-    public function getWeeklySessions()
-    {
-        $trainerId = $this->getTrainerId();
-        $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        $sessions = [];
-        
-        foreach ($days as $index => $day) {
-            $date = now()->startOfWeek()->addDays($index);
-            $sessions[] = Schedule::where('trainer_id', $trainerId)
-                ->whereDate('session_date', $date)
-                ->count();
+            // Verify this schedule belongs to the logged-in trainer
+            if ($schedule->trainer_id != $trainerId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized - This session does not belong to you'
+                ], 403);
+            }
+            
+            $schedule->update(['status' => 'Cancelled']);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Session cancelled successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error cancelling session: ' . $e->getMessage()
+            ], 500);
         }
-        
-        return response()->json([
-            'labels' => $days,
-            'sessions' => $sessions
-        ]);
-    }
-
-    /**
-     * Get client growth data for chart
-     */
-    public function getClientGrowth()
-    {
-        $trainerId = $this->getTrainerId();
-        $months = [];
-        $data = [];
-        
-        for ($i = 5; $i >= 0; $i--) {
-            $month = now()->subMonths($i);
-            $months[] = $month->format('M');
-            $data[] = Schedule::where('trainer_id', $trainerId)
-                ->whereYear('created_at', $month->year)
-                ->whereMonth('created_at', $month->month)
-                ->distinct('member_id')
-                ->count('member_id');
-        }
-        
-        return response()->json([
-            'labels' => $months,
-            'clients' => $data
-        ]);
     }
 }

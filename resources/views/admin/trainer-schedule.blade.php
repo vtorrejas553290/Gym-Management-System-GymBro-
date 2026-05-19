@@ -9,15 +9,10 @@
                 <h1 class="text-3xl text-gray-900">Trainer Schedules Management</h1>
                 <p class="text-gray-600 mt-1">Manage member bookings and trainer assignments</p>
             </div>
-            <button onclick="openAssignModal()" class="bg-[#0070FF] hover:bg-[#0060DD] text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-                </svg>
-                Assign Trainer
-            </button>
+            <!-- Assign Trainer button removed as requested -->
         </div>
 
-                <!-- Stats Cards - Icon and Title top-left, Values bottom-right -->
+        <!-- Stats Cards - Icon and Title top-left, Values bottom-right -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <!-- Total Sessions Card -->
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col hover:shadow-md transition-shadow">
@@ -82,7 +77,7 @@
 
         <!-- Search and Filters -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
                 <div class="lg:col-span-2 relative">
                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -95,6 +90,14 @@
                 <div>
                     <select id="trainerFilter" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent appearance-none cursor-pointer">
                         <option value="All">All Trainers</option>
+                    </select>
+                </div>
+                <div>
+                    <select id="statusFilter" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent appearance-none cursor-pointer">
+                        <option value="All">All Status</option>
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
                     </select>
                 </div>
             </div>
@@ -130,6 +133,28 @@
                     </tbody>
                 </table>
             </div>
+            <!-- Pagination -->
+            <div class="border-t border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-gray-600">
+                        Showing <span id="paginateFrom">0</span> to <span id="paginateTo">0</span> of <span id="paginateTotal">0</span> sessions
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="prevPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                            Previous
+                        </button>
+                        <button id="nextPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            Next
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -138,7 +163,7 @@
 <div id="scheduleModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
     <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
-            <h2 id="modalTitle" class="text-xl text-gray-900">Assign Trainer to Member</h2>
+            <h2 id="modalTitle" class="text-xl text-gray-900">Edit Schedule</h2>
             <button onclick="closeScheduleModal()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
@@ -217,7 +242,7 @@
                     Cancel
                 </button>
                 <button type="submit" class="flex-1 bg-[#0070FF] hover:bg-[#0060DD] text-white rounded-lg py-2 transition-colors">
-                    Assign Trainer
+                    Update Schedule
                 </button>
             </div>
         </form>
@@ -267,6 +292,10 @@ let currentStatusUpdateId = null;
 let searchTerm = "";
 let filterDate = "";
 let filterTrainerId = "All";
+let filterStatus = "All";
+let allSchedules = [];
+let currentPage = 1;
+const perPage = 10;
 
 // Load members and trainers on page load
 async function loadMembersAndTrainers() {
@@ -306,14 +335,17 @@ async function loadSchedules() {
         const params = new URLSearchParams({
             search: searchTerm,
             date: filterDate,
-            trainer_id: filterTrainerId
+            trainer_id: filterTrainerId,
+            status: filterStatus
         });
 
         const response = await fetch(`{{ route("admin.schedules.data") }}?${params}`);
         const data = await response.json();
         
         updateStats(data.stats);
-        renderSchedulesTable(data.schedules);
+        allSchedules = data.schedules;
+        currentPage = 1;
+        renderSchedulesTable();
     } catch (error) {
         console.error('Error loading schedules:', error);
         document.getElementById('schedulesTableBody').innerHTML = `
@@ -356,7 +388,7 @@ async function updateSessionStatus(newStatus) {
         // Get the actual schedule ID (remove the 'TS' prefix if present)
         let scheduleId = currentStatusUpdateId;
         if (typeof scheduleId === 'string' && scheduleId.startsWith('TS')) {
-            scheduleId = scheduleId.replace('TS', '').replace(/^0+/, '');
+            scheduleId = parseInt(scheduleId.replace('TS', '').replace(/^0+/, ''));
         }
         
         console.log('Updating status for schedule ID:', scheduleId, 'to:', newStatus);
@@ -386,20 +418,41 @@ async function updateSessionStatus(newStatus) {
     }
 }
 
-function renderSchedulesTable(schedules) {
+function renderSchedulesTable() {
+    const totalItems = allSchedules.length;
+    const totalPages = Math.ceil(totalItems / perPage);
+    
+    if (currentPage < 1) currentPage = 1;
+    if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+    
+    const start = (currentPage - 1) * perPage;
+    const end = start + perPage;
+    const paginatedSchedules = allSchedules.slice(start, end);
+    
     const tbody = document.getElementById('schedulesTableBody');
     const resultsCount = document.getElementById('resultsCount');
     const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 
-    resultsCount.textContent = schedules.length;
+    resultsCount.textContent = totalItems;
 
-    if (searchTerm || filterDate || filterTrainerId !== "All") {
+    if (searchTerm || filterDate || filterTrainerId !== "All" || filterStatus !== "All") {
         clearFiltersBtn.classList.remove('hidden');
     } else {
         clearFiltersBtn.classList.add('hidden');
     }
+    
+    // Update pagination info
+    const from = totalItems === 0 ? 0 : start + 1;
+    const to = Math.min(end, totalItems);
+    document.getElementById('paginateFrom').textContent = from;
+    document.getElementById('paginateTo').textContent = to;
+    document.getElementById('paginateTotal').textContent = totalItems;
+    
+    // Update button states
+    document.getElementById('prevPageBtn').disabled = currentPage === 1;
+    document.getElementById('nextPageBtn').disabled = currentPage === totalPages || totalItems === 0;
 
-    if (schedules.length === 0) {
+    if (paginatedSchedules.length === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="7" class="px-6 py-12 text-center text-gray-500">
@@ -410,7 +463,7 @@ function renderSchedulesTable(schedules) {
         return;
     }
 
-    tbody.innerHTML = schedules.map(schedule => `
+    tbody.innerHTML = paginatedSchedules.map(schedule => `
         <tr class="hover:bg-gray-50 transition-colors">
             <td class="px-6 py-4">
                 <div class="flex items-center gap-3">
@@ -420,7 +473,7 @@ function renderSchedulesTable(schedules) {
                         </svg>
                     </div>
                     <div>
-                        <p class="text-sm text-gray-900 font-medium">${schedule.memberName}</p>
+                        <p class="text-sm text-gray-900 font-medium">${escapeHtml(schedule.memberName)}</p>
                         <p class="text-xs text-gray-500">${schedule.id}</p>
                     </div>
                 </div>
@@ -432,13 +485,13 @@ function renderSchedulesTable(schedules) {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                         </svg>
                     </div>
-                    <span class="text-sm text-gray-900">${schedule.trainerName}</span>
+                    <span class="text-sm text-gray-900">${escapeHtml(schedule.trainerName)}</span>
                 </div>
             </td>
             <td class="px-6 py-4">
-                <p class="text-sm text-gray-900 font-medium">${schedule.sessionType}</p>
-                <p class="text-xs text-gray-500">${schedule.location}</p>
-            </td>
+                <p class="text-sm text-gray-900 font-medium">${escapeHtml(schedule.sessionType)}</p>
+                <p class="text-xs text-gray-500">${escapeHtml(schedule.location)}</p>
+             </td>
             <td class="px-6 py-4">
                 <div class="flex items-center gap-2 mb-1">
                     <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -452,17 +505,17 @@ function renderSchedulesTable(schedules) {
                     </svg>
                     <span class="text-sm text-gray-600">${schedule.sessionTime} • ${schedule.duration}</span>
                 </div>
-            </td>
+             </td>
             <td class="px-6 py-4">
                 <span class="inline-flex px-3 py-1.5 rounded-lg text-xs font-medium ${schedule.paymentStatus === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
                     ${schedule.paymentStatus}
                 </span>
-            </td>
+             </td>
             <td class="px-6 py-4">
                 <span class="inline-flex px-3 py-1.5 rounded-lg text-xs font-medium ${schedule.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' : schedule.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
                     ${schedule.status}
                 </span>
-            </td>
+             </td>
             <td class="px-6 py-4">
                 <div class="flex gap-2">
                     <button onclick="openEditModal('${schedule.id}')" class="p-2 hover:bg-[#E6F0FF] rounded-lg text-[#0070FF] transition-colors" title="Edit Schedule">
@@ -470,7 +523,7 @@ function renderSchedulesTable(schedules) {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
                         </svg>
                     </button>
-                    <button onclick="openStatusModal('${schedule.id}', '${schedule.memberName}', '${schedule.trainerName}', '${schedule.sessionDate}')" class="p-2 hover:bg-purple-50 rounded-lg text-purple-600 transition-colors" title="Change Status">
+                    <button onclick="openStatusModal('${schedule.id}', '${escapeHtml(schedule.memberName)}', '${escapeHtml(schedule.trainerName)}', '${schedule.sessionDate}')" class="p-2 hover:bg-purple-50 rounded-lg text-purple-600 transition-colors" title="Change Status">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                         </svg>
@@ -483,21 +536,47 @@ function renderSchedulesTable(schedules) {
                         </button>
                     ` : ''}
                 </div>
-            </td>
-        </tr>
+             </td>
+         </tr>
     `).join('');
+}
+
+// Helper function to escape HTML and prevent XSS
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
 }
 
 async function openEditModal(id) {
     try {
-        const response = await fetch(`{{ route("admin.schedules.data") }}`);
+        // Store the original ID with TS prefix for display
+        const displayId = id;
+        // Extract the numeric ID for API calls
+        const numericId = parseInt(id.replace('TS', '').replace(/^0+/, ''));
+        currentEditId = numericId;
+        
+        // Fetch all schedules to find the specific one
+        const params = new URLSearchParams({
+            search: '',
+            date: '',
+            trainer_id: 'All',
+            status: 'All'
+        });
+        
+        const response = await fetch(`{{ route("admin.schedules.data") }}?${params}`);
         const data = await response.json();
-        const schedule = data.schedules.find(s => s.id === id);
+        
+        // Find the schedule by its display ID
+        const schedule = data.schedules.find(s => s.id === displayId);
         
         if (schedule) {
-            currentEditId = id.replace('TS', '').replace(/^0+/, '');
             document.getElementById('modalTitle').innerText = "Edit Schedule";
-            document.getElementById('editScheduleId').value = id;
+            document.getElementById('editScheduleId').value = displayId;
             document.getElementById('memberId').value = schedule.memberId;
             document.getElementById('trainerId').value = schedule.trainerId;
             document.getElementById('sessionType').value = schedule.sessionType;
@@ -508,14 +587,18 @@ async function openEditModal(id) {
             document.getElementById('paymentStatus').value = schedule.paymentStatus;
             document.getElementById('scheduleModal').classList.remove('hidden');
             document.getElementById('scheduleModal').classList.add('flex');
+        } else {
+            alert('Schedule not found');
         }
     } catch (error) {
         console.error('Error fetching schedule:', error);
-        alert('Error loading schedule details');
+        alert('Error loading schedule details: ' + error.message);
     }
 }
 
 function openAssignModal() {
+    // This function is kept but the button to call it has been removed
+    // You can still use it if needed programmatically
     currentEditId = null;
     document.getElementById('modalTitle').innerText = "Assign Trainer to Member";
     document.getElementById('scheduleForm').reset();
@@ -541,7 +624,7 @@ function closeScheduleModal() {
 async function cancelSession(id) {
     if (confirm("Are you sure you want to cancel this session?")) {
         try {
-            const scheduleId = id.replace('TS', '').replace(/^0+/, '');
+            const scheduleId = parseInt(id.replace('TS', '').replace(/^0+/, ''));
             const response = await fetch(`{{ url("admin/schedules") }}/${scheduleId}/cancel`, {
                 method: 'PATCH',
                 headers: {
@@ -626,14 +709,37 @@ document.getElementById('trainerFilter').addEventListener('change', function(e) 
     loadSchedules();
 });
 
+document.getElementById('statusFilter').addEventListener('change', function(e) {
+    filterStatus = e.target.value;
+    loadSchedules();
+});
+
 document.getElementById('clearFiltersBtn').addEventListener('click', function() {
     searchTerm = "";
     filterDate = "";
     filterTrainerId = "All";
+    filterStatus = "All";
     document.getElementById('searchInput').value = "";
     document.getElementById('dateFilter').value = "";
     document.getElementById('trainerFilter').value = "All";
+    document.getElementById('statusFilter').value = "All";
     loadSchedules();
+});
+
+// Pagination listeners
+document.getElementById('prevPageBtn').addEventListener('click', function() {
+    if (currentPage > 1) {
+        currentPage--;
+        renderSchedulesTable();
+    }
+});
+
+document.getElementById('nextPageBtn').addEventListener('click', function() {
+    const totalPages = Math.ceil(allSchedules.length / perPage);
+    if (currentPage < totalPages) {
+        currentPage++;
+        renderSchedulesTable();
+    }
 });
 
 // Initial load

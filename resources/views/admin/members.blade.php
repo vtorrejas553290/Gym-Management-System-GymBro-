@@ -16,15 +16,37 @@
             </button>
         </div>
 
-        <!-- Search -->
+        <!-- Search and Filters -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div class="flex gap-4">
+            <div class="flex flex-col sm:flex-row gap-4">
                 <div class="flex-1 relative">
                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                     <input type="text" id="searchInput" placeholder="Search by name, email, or ID..." class="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent">
                 </div>
+                <div class="sm:w-48">
+                    <select id="planFilter" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent">
+                        <option value="All">All Plans</option>
+                        <option value="Basic">Basic</option>
+                        <option value="Premium">Premium</option>
+                        <option value="VIP">VIP</option>
+                        <option value="Annual">Annual</option>
+                    </select>
+                </div>
+                <div class="sm:w-48">
+                    <select id="statusFilter" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent">
+                        <option value="All">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-4 flex items-center justify-between">
+                <p class="text-sm text-gray-600">
+                    Showing <span id="resultsCount" class="text-gray-900 font-medium">0</span> members
+                </p>
+                <button id="clearFiltersBtn" class="text-[#0070FF] hover:text-[#005FCC] font-medium text-sm hidden">Clear filters</button>
             </div>
         </div>
 
@@ -46,6 +68,29 @@
                         <!-- Members will be loaded here -->
                     </tbody>
                 </table>
+            </div>
+            
+            <!-- Pagination -->
+            <div class="border-t border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-gray-600">
+                        Showing <span id="paginateFrom">0</span> to <span id="paginateTo">0</span> of <span id="paginateTotal">0</span> members
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="prevPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                            Previous
+                        </button>
+                        <button id="nextPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            Next
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -140,6 +185,11 @@
     
     let currentEditingId = null;
     let searchTerm = "";
+    let planFilter = "All";
+    let statusFilter = "All";
+    let filteredMembers = [];
+    let currentPage = 1;
+    const perPage = 10;
 
     // Load members from database
     async function loadMembers() {
@@ -147,23 +197,59 @@
             const response = await fetch('/admin/members/data');
             const data = await response.json();
             window.members = data;
-            renderMembersTable();
+            applyFilters();
         } catch (error) {
             console.error('Error loading members:', error);
         }
     }
 
-    function renderMembersTable() {
-        const filtered = window.members.filter(member => {
+    function applyFilters() {
+        filteredMembers = window.members.filter(member => {
             const fullName = `${member.first_name} ${member.middle_name ? member.middle_name + ' ' : ''}${member.last_name}`;
-            return fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            const matchesSearch = fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 member.id.toString().includes(searchTerm.toLowerCase());
+            
+            const displayPlan = member.plan && member.plan !== '' ? member.plan : 'Basic';
+            const matchesPlan = planFilter === "All" || displayPlan === planFilter;
+            
+            const memberStatus = member.status || 'Active';
+            const matchesStatus = statusFilter === "All" || memberStatus === statusFilter;
+
+            return matchesSearch && matchesPlan && matchesStatus;
         });
+        
+        currentPage = 1;
+        renderMembersTable();
+    }
+
+    function renderMembersTable() {
+        const resultsCount = document.getElementById('resultsCount');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+        const totalItems = filteredMembers.length;
+        const totalPages = Math.ceil(totalItems / perPage);
+        
+        // Ensure current page is within bounds
+        if (currentPage < 1) currentPage = 1;
+        if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+        
+        const start = (currentPage - 1) * perPage;
+        const end = start + perPage;
+        const paginatedMembers = filteredMembers.slice(start, end);
+
+        resultsCount.textContent = totalItems;
+
+        if (searchTerm || planFilter !== "All" || statusFilter !== "All") {
+            clearFiltersBtn.classList.remove('hidden');
+        } else {
+            clearFiltersBtn.classList.add('hidden');
+        }
+
+        updatePaginationControls(totalItems, start, end);
 
         const tbody = document.getElementById('membersTableBody');
         
-        if (filtered.length === 0) {
+        if (paginatedMembers.length === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="6" class="px-6 py-12 text-center text-gray-500">
@@ -174,10 +260,10 @@
             return;
         }
 
-        tbody.innerHTML = filtered.map(member => {
+        tbody.innerHTML = paginatedMembers.map(member => {
             const fullName = `${member.first_name} ${member.middle_name ? member.middle_name + ' ' : ''}${member.last_name}`;
-            // Display plan, default to 'Basic' if empty
             const displayPlan = member.plan && member.plan !== '' ? member.plan : 'Basic';
+            const memberStatus = member.status || 'Active';
             return `
             <tr class="hover:bg-gray-50 transition-colors">
                 <td class="px-6 py-4">
@@ -201,8 +287,8 @@
                     </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="inline-flex px-3 py-1 rounded-full text-xs font-medium ${member.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
-                        ${member.status || 'Active'}
+                    <span class="inline-flex px-3 py-1 rounded-full text-xs font-medium ${memberStatus === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                        ${memberStatus}
                     </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
@@ -218,9 +304,22 @@
                             </svg>
                         </button>
                     </div>
-                 </td>
-              </tr>
+                  </td>
+               </tr>
         `}).join('');
+    }
+
+    function updatePaginationControls(totalItems, start, end) {
+        const from = totalItems === 0 ? 0 : start + 1;
+        const to = Math.min(end, totalItems);
+        
+        document.getElementById('paginateFrom').textContent = from;
+        document.getElementById('paginateTo').textContent = to;
+        document.getElementById('paginateTotal').textContent = totalItems;
+        
+        const totalPages = Math.ceil(totalItems / perPage);
+        document.getElementById('prevPageBtn').disabled = currentPage === 1;
+        document.getElementById('nextPageBtn').disabled = currentPage === totalPages || totalItems === 0;
     }
 
     // Helper function to get plan color
@@ -379,10 +478,46 @@
         }
     });
 
-    // Search functionality
+    // Search and filter listeners
     document.getElementById('searchInput').addEventListener('input', function(e) {
         searchTerm = e.target.value;
-        renderMembersTable();
+        applyFilters();
+    });
+
+    document.getElementById('planFilter').addEventListener('change', function(e) {
+        planFilter = e.target.value;
+        applyFilters();
+    });
+
+    document.getElementById('statusFilter').addEventListener('change', function(e) {
+        statusFilter = e.target.value;
+        applyFilters();
+    });
+
+    document.getElementById('clearFiltersBtn').addEventListener('click', function() {
+        searchTerm = "";
+        planFilter = "All";
+        statusFilter = "All";
+        document.getElementById('searchInput').value = "";
+        document.getElementById('planFilter').value = "All";
+        document.getElementById('statusFilter').value = "All";
+        applyFilters();
+    });
+
+    // Pagination listeners
+    document.getElementById('prevPageBtn').addEventListener('click', function() {
+        if (currentPage > 1) {
+            currentPage--;
+            renderMembersTable();
+        }
+    });
+
+    document.getElementById('nextPageBtn').addEventListener('click', function() {
+        const totalPages = Math.ceil(filteredMembers.length / perPage);
+        if (currentPage < totalPages) {
+            currentPage++;
+            renderMembersTable();
+        }
     });
 
     // Initial load

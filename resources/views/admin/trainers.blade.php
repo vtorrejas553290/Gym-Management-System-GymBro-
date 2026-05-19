@@ -16,7 +16,7 @@
             </button>
         </div>
 
-        <!-- Search and Filter -->
+        <!-- Search and Filters -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div class="flex flex-col lg:flex-row gap-4">
                 <div class="flex-1 relative">
@@ -39,6 +39,18 @@
                             <option value="Personal Training">Personal Training</option>
                             <option value="Nutrition & Wellness">Nutrition & Wellness</option>
                             <option value="Sports Performance">Sports Performance</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="lg:w-48">
+                    <div class="relative">
+                        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <select id="statusFilter" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent appearance-none cursor-pointer">
+                            <option value="All">All Status</option>
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
                         </select>
                     </div>
                 </div>
@@ -71,6 +83,29 @@
                         <!-- Trainers will be loaded here -->
                     </tbody>
                 </table>
+            </div>
+            
+            <!-- Pagination -->
+            <div class="border-t border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-gray-600">
+                        Showing <span id="paginateFrom">0</span> to <span id="paginateTo">0</span> of <span id="paginateTotal">0</span> trainers
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="prevPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                            Previous
+                        </button>
+                        <button id="nextPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            Next
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -244,6 +279,10 @@
     let currentRateTrainerId = null;
     let searchTerm = "";
     let selectedSpecialization = "All";
+    let selectedStatus = "All";
+    let filteredTrainers = [];
+    let currentPage = 1;
+    const perPage = 10;
     let updatedRateId = null;
 
     // Load trainers from database
@@ -252,15 +291,14 @@
             const response = await fetch('/admin/trainers/data');
             const data = await response.json();
             window.trainers = data;
-            renderTrainersTable();
+            applyFilters();
         } catch (error) {
             console.error('Error loading trainers:', error);
         }
     }
 
-    function renderTrainersTable() {
-        const filtered = window.trainers.filter(trainer => {
-            // Construct full name properly from first_name, middle_name, last_name
+    function applyFilters() {
+        filteredTrainers = window.trainers.filter(trainer => {
             const fullName = `${trainer.first_name} ${trainer.middle_name ? trainer.middle_name + ' ' : ''}${trainer.last_name}`;
             const matchesSearch = searchTerm === "" ||
                 fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -268,23 +306,44 @@
                 trainer.specialization.toLowerCase().includes(searchTerm.toLowerCase());
 
             const matchesSpecialization = selectedSpecialization === "All" || trainer.specialization === selectedSpecialization;
+            
+            const trainerStatus = trainer.status || 'Active';
+            const matchesStatus = selectedStatus === "All" || trainerStatus === selectedStatus;
 
-            return matchesSearch && matchesSpecialization;
+            return matchesSearch && matchesSpecialization && matchesStatus;
         });
+        
+        currentPage = 1;
+        renderTrainersTable();
+    }
 
-        const tbody = document.getElementById('trainersTableBody');
+    function renderTrainersTable() {
         const resultsCount = document.getElementById('resultsCount');
         const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+        const totalItems = filteredTrainers.length;
+        const totalPages = Math.ceil(totalItems / perPage);
+        
+        // Ensure current page is within bounds
+        if (currentPage < 1) currentPage = 1;
+        if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+        
+        const start = (currentPage - 1) * perPage;
+        const end = start + perPage;
+        const paginatedTrainers = filteredTrainers.slice(start, end);
 
-        resultsCount.textContent = filtered.length;
+        resultsCount.textContent = totalItems;
 
-        if (searchTerm || selectedSpecialization !== "All") {
+        if (searchTerm || selectedSpecialization !== "All" || selectedStatus !== "All") {
             clearFiltersBtn.classList.remove('hidden');
         } else {
             clearFiltersBtn.classList.add('hidden');
         }
 
-        if (filtered.length === 0) {
+        updatePaginationControls(totalItems, start, end);
+
+        const tbody = document.getElementById('trainersTableBody');
+
+        if (paginatedTrainers.length === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="8" class="px-6 py-12 text-center text-gray-500">
@@ -295,9 +354,9 @@
             return;
         }
 
-        tbody.innerHTML = filtered.map(trainer => {
-            // Construct full name for each trainer
+        tbody.innerHTML = paginatedTrainers.map(trainer => {
             const fullName = `${trainer.first_name} ${trainer.middle_name ? trainer.middle_name + ' ' : ''}${trainer.last_name}`;
+            const trainerStatus = trainer.status || 'Active';
             return `
                 <tr class="hover:bg-gray-50 transition-colors">
                     <td class="px-6 py-4">
@@ -322,10 +381,10 @@
                             </svg>
                             ${escapeHtml(trainer.specialization)}
                         </span>
-                    </td>
+                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         ${trainer.experience} ${trainer.experience === 1 ? 'year' : 'years'}
-                    </td>
+                     </td>
                     <td class="px-6 py-4">
                         <div class="inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${updatedRateId === trainer.id ? 'bg-green-100 border-2 border-green-500 animate-pulse' : 'bg-[#E6F0FF] border border-[#0070FF]/20'}">
                             <svg class="w-4 h-4 ${updatedRateId === trainer.id ? 'text-green-700' : 'text-[#0070FF]'}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -334,12 +393,12 @@
                             <span class="text-lg font-medium ${updatedRateId === trainer.id ? 'text-green-900' : 'text-gray-900'}">₱${trainer.hourly_rate.toLocaleString()}</span>
                             <span class="text-xs text-gray-600">/hr</span>
                         </div>
-                    </td>
+                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="inline-flex px-3 py-1.5 rounded-lg text-xs font-medium ${trainer.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
-                            ${trainer.status}
+                        <span class="inline-flex px-3 py-1.5 rounded-lg text-xs font-medium ${trainerStatus === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                            ${trainerStatus}
                         </span>
-                    </td>
+                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                         <div class="flex gap-2">
                             <button onclick="openRateModal(${trainer.id})" class="p-2 hover:bg-[#E6F0FF] rounded-lg text-[#0070FF] transition-colors group" title="Edit Rate">
@@ -358,10 +417,23 @@
                                 </svg>
                             </button>
                         </div>
-                    </td>
-                 </tr>
+                     </td>
+                  </tr>
             `;
         }).join('');
+    }
+
+    function updatePaginationControls(totalItems, start, end) {
+        const from = totalItems === 0 ? 0 : start + 1;
+        const to = Math.min(end, totalItems);
+        
+        document.getElementById('paginateFrom').textContent = from;
+        document.getElementById('paginateTo').textContent = to;
+        document.getElementById('paginateTotal').textContent = totalItems;
+        
+        const totalPages = Math.ceil(totalItems / perPage);
+        document.getElementById('prevPageBtn').disabled = currentPage === 1;
+        document.getElementById('nextPageBtn').disabled = currentPage === totalPages || totalItems === 0;
     }
 
     function escapeHtml(text) {
@@ -411,7 +483,7 @@
             document.getElementById('trainerSpecialization').value = trainer.specialization;
             document.getElementById('trainerExperience').value = trainer.experience;
             document.getElementById('trainerRate').value = trainer.hourly_rate;
-            document.getElementById('trainerStatus').value = trainer.status;
+            document.getElementById('trainerStatus').value = trainer.status || 'Active';
             document.getElementById('trainerPassword').value = '';
             document.getElementById('trainerPasswordConfirmation').value = '';
             document.getElementById('trainerModal').classList.remove('hidden');
@@ -578,25 +650,46 @@
         }
     });
 
-    // Search functionality
+    // Search and filter listeners
     document.getElementById('searchInput').addEventListener('input', function(e) {
         searchTerm = e.target.value;
-        renderTrainersTable();
+        applyFilters();
     });
 
-    // Specialization filter
     document.getElementById('specializationFilter').addEventListener('change', function(e) {
         selectedSpecialization = e.target.value;
-        renderTrainersTable();
+        applyFilters();
     });
 
-    // Clear filters
+    document.getElementById('statusFilter').addEventListener('change', function(e) {
+        selectedStatus = e.target.value;
+        applyFilters();
+    });
+
     document.getElementById('clearFiltersBtn').addEventListener('click', function() {
         searchTerm = "";
         selectedSpecialization = "All";
+        selectedStatus = "All";
         document.getElementById('searchInput').value = "";
         document.getElementById('specializationFilter').value = "All";
-        renderTrainersTable();
+        document.getElementById('statusFilter').value = "All";
+        applyFilters();
+    });
+
+    // Pagination listeners
+    document.getElementById('prevPageBtn').addEventListener('click', function() {
+        if (currentPage > 1) {
+            currentPage--;
+            renderTrainersTable();
+        }
+    });
+
+    document.getElementById('nextPageBtn').addEventListener('click', function() {
+        const totalPages = Math.ceil(filteredTrainers.length / perPage);
+        if (currentPage < totalPages) {
+            currentPage++;
+            renderTrainersTable();
+        }
     });
 
     // Initial load
