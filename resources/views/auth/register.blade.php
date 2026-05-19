@@ -1,3 +1,9 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Gym Management System - Register</title>
     <style>
         body {
             margin: 0;
@@ -10,6 +16,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            padding: 20px;
         }
 
         .card {
@@ -18,9 +25,9 @@
             padding: 30px;
             border-radius: 16px;
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
         }
 
-        /* Back */
         .back {
             text-align: left;
             margin-bottom: 10px;
@@ -36,7 +43,6 @@
             text-decoration: underline;
         }
 
-        /* Logo */
         .logo {
             width: 60px;
             height: 60px;
@@ -54,7 +60,6 @@
             transform: scale(1.3);  
         }
 
-        /* Title */
         h2 {
             text-align: center;
             margin: 10px 0 5px;
@@ -68,13 +73,11 @@
             margin-bottom: 20px;
         }
 
-        /* Rows */
         .row {
             display: flex;
             gap: 15px;
         }
 
-        /* Form */
         .form-group {
             flex: 1;
             margin-bottom: 15px;
@@ -87,7 +90,6 @@
             display: block;
         }
 
-        /* Input with icon */
         .input-box {
             display: flex;
             align-items: center;
@@ -103,7 +105,6 @@
             width: 100%;
         }
 
-        /* Icons */
         .icon {
             color: #6c757d;
             font-size: 14px;
@@ -111,7 +112,6 @@
             align-items: center;
         }
 
-        /* Button */
         .btn {
             width: 100%;
             padding: 12px;
@@ -159,16 +159,70 @@
             font-size: 12px;
             margin-top: 5px;
         }
-    </style>
 
+        @media (max-width: 768px) {
+            .wrapper {
+                padding: 16px;
+            }
+            
+            .card {
+                width: 100%;
+                max-width: 500px;
+                transform: scale(1.02);
+                padding: 28px 24px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .row {
+                flex-direction: column;
+                gap: 0;
+            }
+            
+            .card {
+                transform: scale(1.03);
+                padding: 24px 20px;
+                max-width: 480px;
+            }
+            
+            .row:has(.form-group:only-child) .form-group {
+                max-width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .card {
+                transform: scale(1.04);
+                padding: 22px 18px;
+                border-radius: 20px;
+                box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+            }
+            
+            .input-box {
+                padding: 10px 12px;
+            }
+            
+            .btn {
+                padding: 12px;
+                font-size: 1rem;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .card {
+                transform: scale(1.02);
+                padding: 20px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
     <div class="wrapper">
         <div class="card">
-            <!-- Back -->
             <div class="back">
                 <a href="{{ route('login') }}">← Back</a>
             </div>
 
-            <!-- Logo -->
             <div class="logo">
                 <span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"/><path d="m2.5 21.5 1.4-1.4"/><path d="m20.1 3.9 1.4-1.4"/><path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"/><path d="m9.6 14.4 4.8-4.8"/></svg></span>
             </div>
@@ -179,7 +233,6 @@
             <form method="POST" action="{{ route('register') }}">
                 @csrf
 
-                <!-- ROW 1 -->
                 <div class="row">
                     <div class="form-group">
                         <label>First Name</label>
@@ -204,7 +257,6 @@
                         </div>
                 </div>
 
-                <!-- ROW 2 -->
                 <div class="row">
                     <div class="form-group">
                         <label>Middle Name</label>
@@ -229,7 +281,6 @@
                         </div>
                 </div>
 
-                <!-- ROW 3 -->
                 <div class="row">
                     <div class="form-group">
                         <label>Last Name</label>
@@ -243,7 +294,6 @@
                         </div>
                 </div>
 
-                <!-- PASSWORD -->
                 <div class="row">
                     <div class="form-group">
                         <label>Password</label>
@@ -265,14 +315,14 @@
                         </div>
                 </div>
 
-                <!-- BUTTON -->
                 <button class="btn">Sign up</button>
 
                 <p class="bottom-text">
                     Already have an account?
                     <a href="{{ route('login') }}">Sign in</a>
                 </p>
-
             </form>
         </div>
     </div>
+</body>
+</html>

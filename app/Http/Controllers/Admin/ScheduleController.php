@@ -40,7 +40,14 @@ class ScheduleController extends Controller
             $query->where('trainer_id', $request->trainer_id);
         }
 
+        // Add status filter
+        if ($request->status && $request->status != 'All') {
+            $query->where('status', $request->status);
+        }
+
         $schedules = $query->orderBy('session_date', 'desc')->get();
+
+
 
         // Format data for frontend
         $formattedSchedules = $schedules->map(function($schedule) {

@@ -17,7 +17,7 @@
             </button>
         </div>
 
-                <!-- Stats Cards - Icon and Title top-left, Values bottom-right -->
+        <!-- Stats Cards - Icon and Title top-left, Values bottom-right -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <!-- Total Sessions Card -->
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col hover:shadow-md transition-shadow">
@@ -80,9 +80,9 @@
             </div>
         </div>
 
-        <!-- Search and Filters -->
+       <!-- Search and Filters -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="lg:col-span-2 relative">
                     <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -95,6 +95,14 @@
                 <div>
                     <select id="trainerFilter" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent appearance-none cursor-pointer">
                         <option value="All">All Trainers</option>
+                    </select>
+                </div>
+                <div>
+                    <select id="statusFilter" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent appearance-none cursor-pointer">
+                        <option value="All">All Status</option>
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
                     </select>
                 </div>
             </div>
@@ -129,6 +137,28 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+            <!-- Pagination -->
+            <div class="border-t border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-gray-600">
+                        Showing <span id="paginateFrom">0</span> to <span id="paginateTo">0</span> of <span id="paginateTotal">0</span> sessions
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="prevPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                            Previous
+                        </button>
+                        <button id="nextPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            Next
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -204,14 +234,6 @@
                 <input type="text" id="location" placeholder="e.g., Main Gym Floor - Zone A" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent" required>
             </div>
 
-            <div class="space-y-2">
-                <label class="block text-sm font-medium text-gray-700">Payment Status</label>
-                <select id="paymentStatus" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#0070FF] focus:border-transparent" required>
-                    <option value="Pending">Pending</option>
-                    <option value="Paid">Paid</option>
-                </select>
-            </div>
-
             <div class="flex gap-3 pt-4">
                 <button type="button" onclick="closeScheduleModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg py-2 transition-colors">
                     Cancel
@@ -267,6 +289,10 @@ let currentStatusUpdateId = null;
 let searchTerm = "";
 let filterDate = "";
 let filterTrainerId = "All";
+let filterStatus = "All";
+let allSchedules = [];
+let currentPage = 1;
+const perPage = 10;
 
 // Load members and trainers on page load
 async function loadMembersAndTrainers() {
@@ -306,14 +332,17 @@ async function loadSchedules() {
         const params = new URLSearchParams({
             search: searchTerm,
             date: filterDate,
-            trainer_id: filterTrainerId
+            trainer_id: filterTrainerId,
+            status: filterStatus
         });
 
         const response = await fetch(`{{ route("admin.schedules.data") }}?${params}`);
         const data = await response.json();
         
         updateStats(data.stats);
-        renderSchedulesTable(data.schedules);
+        allSchedules = data.schedules;
+        currentPage = 1;
+        renderSchedulesTable();
     } catch (error) {
         console.error('Error loading schedules:', error);
         document.getElementById('schedulesTableBody').innerHTML = `
@@ -386,20 +415,41 @@ async function updateSessionStatus(newStatus) {
     }
 }
 
-function renderSchedulesTable(schedules) {
+function renderSchedulesTable() {
+    const totalItems = allSchedules.length;
+    const totalPages = Math.ceil(totalItems / perPage);
+    
+    if (currentPage < 1) currentPage = 1;
+    if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+    
+    const start = (currentPage - 1) * perPage;
+    const end = start + perPage;
+    const paginatedSchedules = allSchedules.slice(start, end);
+    
     const tbody = document.getElementById('schedulesTableBody');
     const resultsCount = document.getElementById('resultsCount');
     const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 
-    resultsCount.textContent = schedules.length;
+    resultsCount.textContent = totalItems;
 
-    if (searchTerm || filterDate || filterTrainerId !== "All") {
+    if (searchTerm || filterDate || filterTrainerId !== "All" || filterStatus !== "All") {
         clearFiltersBtn.classList.remove('hidden');
     } else {
         clearFiltersBtn.classList.add('hidden');
     }
+    
+    // Update pagination info
+    const from = totalItems === 0 ? 0 : start + 1;
+    const to = Math.min(end, totalItems);
+    document.getElementById('paginateFrom').textContent = from;
+    document.getElementById('paginateTo').textContent = to;
+    document.getElementById('paginateTotal').textContent = totalItems;
+    
+    // Update button states
+    document.getElementById('prevPageBtn').disabled = currentPage === 1;
+    document.getElementById('nextPageBtn').disabled = currentPage === totalPages || totalItems === 0;
 
-    if (schedules.length === 0) {
+    if (paginatedSchedules.length === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="7" class="px-6 py-12 text-center text-gray-500">
@@ -410,7 +460,7 @@ function renderSchedulesTable(schedules) {
         return;
     }
 
-    tbody.innerHTML = schedules.map(schedule => `
+    tbody.innerHTML = paginatedSchedules.map(schedule => `
         <tr class="hover:bg-gray-50 transition-colors">
             <td class="px-6 py-4">
                 <div class="flex items-center gap-3">
@@ -626,14 +676,37 @@ document.getElementById('trainerFilter').addEventListener('change', function(e) 
     loadSchedules();
 });
 
+document.getElementById('statusFilter').addEventListener('change', function(e) {
+    filterStatus = e.target.value;
+    loadSchedules();
+});
+
 document.getElementById('clearFiltersBtn').addEventListener('click', function() {
     searchTerm = "";
     filterDate = "";
     filterTrainerId = "All";
+    filterStatus = "All";
     document.getElementById('searchInput').value = "";
     document.getElementById('dateFilter').value = "";
     document.getElementById('trainerFilter').value = "All";
+    document.getElementById('statusFilter').value = "All";
     loadSchedules();
+});
+
+// Pagination listeners
+document.getElementById('prevPageBtn').addEventListener('click', function() {
+    if (currentPage > 1) {
+        currentPage--;
+        renderSchedulesTable();
+    }
+});
+
+document.getElementById('nextPageBtn').addEventListener('click', function() {
+    const totalPages = Math.ceil(allSchedules.length / perPage);
+    if (currentPage < totalPages) {
+        currentPage++;
+        renderSchedulesTable();
+    }
 });
 
 // Initial load

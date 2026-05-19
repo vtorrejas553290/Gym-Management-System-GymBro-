@@ -109,6 +109,29 @@
                     </tbody>
                 </table>
             </div>
+            
+            <!-- Pagination -->
+            <div class="border-t border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-gray-600">
+                        Showing <span id="paginateFrom">0</span> to <span id="paginateTo">0</span> of <span id="paginateTotal">0</span> clients
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="prevPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                            Previous
+                        </button>
+                        <button id="nextPageBtn" class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            Next
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -184,12 +207,9 @@
             </div>
         </div>
 
-        <div class="p-6 border-t border-gray-200 flex flex-col sm:flex-row justify-between gap-3">
-            <button onclick="closeModal()" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+        <div class="p-6 border-t border-gray-200">
+            <button onclick="closeModal()" class="w-full px-4 py-2 bg-[#0070FF] text-white rounded-lg hover:bg-[#005FCC] transition-colors">
                 Close
-            </button>
-            <button onclick="assignWorkout()" class="px-4 py-2 bg-[#00BFA5] text-white rounded-lg hover:bg-[#009688] transition-colors">
-                Assign Workout
             </button>
         </div>
     </div>
@@ -197,9 +217,12 @@
 
 <script>
 let clients = [];
+let filteredClients = [];
 let currentClient = null;
 let searchTerm = "";
 let filterStatus = "All";
+let currentPage = 1;
+const perPage = 5;
 
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
@@ -214,7 +237,7 @@ async function loadClients() {
             const data = await response.json();
             clients = data.clients || [];
             updateStats(data.stats);
-            renderClientsTable();
+            applyFilters();
         } else {
             throw new Error('Failed to load clients');
         }
@@ -230,14 +253,8 @@ async function loadClients() {
     }
 }
 
-function updateStats(stats) {
-    document.getElementById('totalClients').textContent = stats?.total || 0;
-    document.getElementById('activeClients').textContent = stats?.active || 0;
-    document.getElementById('inactiveClients').textContent = stats?.inactive || 0;
-}
-
-function renderClientsTable() {
-    const filtered = clients.filter(client => {
+function applyFilters() {
+    filteredClients = clients.filter(client => {
         const matchesSearch = searchTerm === "" || 
             client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -247,12 +264,32 @@ function renderClientsTable() {
 
         return matchesSearch && matchesStatus;
     });
+    
+    currentPage = 1;
+    renderClientsTable();
+}
 
-    const tbody = document.getElementById('clientsTableBody');
+function updateStats(stats) {
+    document.getElementById('totalClients').textContent = stats?.total || 0;
+    document.getElementById('activeClients').textContent = stats?.active || 0;
+    document.getElementById('inactiveClients').textContent = stats?.inactive || 0;
+}
+
+function renderClientsTable() {
     const resultsCount = document.getElementById('resultsCount');
     const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+    const totalItems = filteredClients.length;
+    const totalPages = Math.ceil(totalItems / perPage);
+    
+    // Ensure current page is within bounds
+    if (currentPage < 1) currentPage = 1;
+    if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+    
+    const start = (currentPage - 1) * perPage;
+    const end = start + perPage;
+    const paginatedClients = filteredClients.slice(start, end);
 
-    resultsCount.textContent = filtered.length;
+    resultsCount.textContent = totalItems;
 
     if (searchTerm || filterStatus !== "All") {
         clearFiltersBtn.classList.remove('hidden');
@@ -260,8 +297,10 @@ function renderClientsTable() {
         clearFiltersBtn.classList.add('hidden');
     }
 
-    if (filtered.length === 0) {
-        tbody.innerHTML = `
+    updatePaginationControls(totalItems, start, end);
+
+    if (paginatedClients.length === 0) {
+        document.getElementById('clientsTableBody').innerHTML = `
             <tr>
                 <td colspan="7" class="px-6 py-12 text-center text-gray-500">
                     No clients found
@@ -271,7 +310,7 @@ function renderClientsTable() {
         return;
     }
 
-    tbody.innerHTML = filtered.map(client => `
+    document.getElementById('clientsTableBody').innerHTML = paginatedClients.map(client => `
         <tr class="hover:bg-gray-50 transition-colors">
             <td class="px-6 py-4">
                 <div class="flex items-center gap-3">
@@ -312,9 +351,22 @@ function renderClientsTable() {
                         </svg>
                     </button>
                 </div>
-            </td>
-        </tr>
+             </td>
+         </tr>
     `).join('');
+}
+
+function updatePaginationControls(totalItems, start, end) {
+    const from = totalItems === 0 ? 0 : start + 1;
+    const to = Math.min(end, totalItems);
+    
+    document.getElementById('paginateFrom').textContent = from;
+    document.getElementById('paginateTo').textContent = to;
+    document.getElementById('paginateTotal').textContent = totalItems;
+    
+    const totalPages = Math.ceil(totalItems / perPage);
+    document.getElementById('prevPageBtn').disabled = currentPage === 1;
+    document.getElementById('nextPageBtn').disabled = currentPage === totalPages || totalItems === 0;
 }
 
 function viewClientDetails(clientId) {
@@ -343,12 +395,6 @@ function closeModal() {
     currentClient = null;
 }
 
-function assignWorkout() {
-    if (currentClient) {
-        alert(`Assign workout to ${currentClient.name}`);
-    }
-}
-
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -359,12 +405,12 @@ function escapeHtml(text) {
 // Search and filter listeners
 document.getElementById('searchInput').addEventListener('input', function(e) {
     searchTerm = e.target.value;
-    renderClientsTable();
+    applyFilters();
 });
 
 document.getElementById('statusFilter').addEventListener('change', function(e) {
     filterStatus = e.target.value;
-    renderClientsTable();
+    applyFilters();
 });
 
 document.getElementById('clearFiltersBtn').addEventListener('click', function() {
@@ -372,7 +418,23 @@ document.getElementById('clearFiltersBtn').addEventListener('click', function() 
     filterStatus = "All";
     document.getElementById('searchInput').value = "";
     document.getElementById('statusFilter').value = "All";
-    renderClientsTable();
+    applyFilters();
+});
+
+// Pagination listeners
+document.getElementById('prevPageBtn').addEventListener('click', function() {
+    if (currentPage > 1) {
+        currentPage--;
+        renderClientsTable();
+    }
+});
+
+document.getElementById('nextPageBtn').addEventListener('click', function() {
+    const totalPages = Math.ceil(filteredClients.length / perPage);
+    if (currentPage < totalPages) {
+        currentPage++;
+        renderClientsTable();
+    }
 });
 
 // Initial load
